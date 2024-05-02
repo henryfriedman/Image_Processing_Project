@@ -90,7 +90,7 @@ class Helper:
         
         return dft_by_box
     
-    def create_spectrogram(self, sticker, image):
+    def create_spectrogram(self, sticker, image, show = False):
         """ Create a 2D DFT spectrogram of the image
             By combining the DFTs of each searching box
 
@@ -133,19 +133,20 @@ class Helper:
                     j * box_width: (j + 1) * box_width
                 ] = dft_box
         
-        plt.figure(figsize=(10, 5))
-        plt.imshow(composite_dft, cmap='viridis')
-        plt.colorbar()
-        plt.title('2-D Spectrogram Representation')
-        # Calculate the boundaries for the vertical lines (edges of the boxes)
-        for i in range(1, num_boxes_horizontally):
-            plt.axvline(x=i * box_width, color='orange', linestyle='-', linewidth=2)
+        if show == True:
+            plt.figure(figsize=(10, 5))
+            plt.imshow(composite_dft, cmap='viridis')
+            plt.colorbar()
+            plt.title('2-D Spectrogram Representation')
+            # Calculate the boundaries for the vertical lines (edges of the boxes)
+            for i in range(1, num_boxes_horizontally):
+                plt.axvline(x=i * box_width, color='orange', linestyle='-', linewidth=2)
 
-        # Calculate the boundaries for the horizontal lines (edges of the boxes)
-        for j in range(1, num_boxes_vertically):
-            plt.axhline(y=j * box_height, color='orange', linestyle='-', linewidth=2)
+            # Calculate the boundaries for the horizontal lines (edges of the boxes)
+            for j in range(1, num_boxes_vertically):
+                plt.axhline(y=j * box_height, color='orange', linestyle='-', linewidth=2)
 
-        plt.show()
+            #plt.show()
         
         return ({"Composite DFT":composite_dft, 
                 "Horizontal boxes": num_boxes_horizontally, 
