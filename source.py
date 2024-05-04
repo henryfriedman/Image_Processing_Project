@@ -55,7 +55,7 @@ class Helper:
         pad_width = 0 if image.shape[1] % box_width == 0 else box_width - image.shape[1] % box_width
         
         # Apply padding to the image
-        padded_image = np.pad(image, ((0, pad_height), (0, pad_width)), mode='constant', constant_values=1)
+        padded_image = np.pad(image, ((0, pad_height), (0, pad_width)), mode='reflect')
         
         return box_height, box_width, padded_image
     
@@ -90,7 +90,7 @@ class Helper:
         
         return dft_by_box
     
-    def create_spectrogram(self, sticker, image, show = False):
+    def create_spectrogram(self, sticker, image):
         """ Create a 2D DFT spectrogram of the image
             By combining the DFTs of each searching box
 
@@ -100,11 +100,6 @@ class Helper:
         
         Returns:
             composite_dft: the complete 2D spectrogram of the image
-            (num_boxes_horizontally,
-            num_boxes_vertically,
-            box_height,
-            box_width) : some other parameters of the spectrogram
-            
         """
         # Get dft of each searching box from the image
         dft_by_box = self.dft_by_search_box(sticker, image)
@@ -133,31 +128,27 @@ class Helper:
                     j * box_width: (j + 1) * box_width
                 ] = dft_box
         
-        if show == True:
+        return composite_dft
+       
+            
+    def show_spectrogram(self, composite_dft, sticker, grid = False):
+        if grid == False:
             plt.figure(figsize=(10, 5))
-            plt.imshow(composite_dft, cmap='viridis')
+            plt.imshow(composite_dft, cmap = "gray")
             plt.colorbar()
             plt.title('2-D Spectrogram Representation')
-            # Calculate the boundaries for the vertical lines (edges of the boxes)
-            for i in range(1, num_boxes_horizontally):
-                plt.axvline(x=i * box_width, color='orange', linestyle='-', linewidth=2)
-
-            # Calculate the boundaries for the horizontal lines (edges of the boxes)
-            for j in range(1, num_boxes_vertically):
-                plt.axhline(y=j * box_height, color='orange', linestyle='-', linewidth=2)
-
-            #plt.show()
-        
-        return ({"Composite DFT":composite_dft, 
-                "Horizontal boxes": num_boxes_horizontally, 
-                "Vertical boxes": num_boxes_vertically,
-                "Box Height": box_height,
-                "Box Width": box_width
-                })
-    
+      
+        elif grid == True:
+           self.show_grid(sticker,composite_dft)
+           
     
     def show_grid(self, sticker, image):
+        """Add grid line to the image based on the sticker size
         
+        Args:
+            sticker (np.array): the sticker
+            image  (np.array): the target image 
+        """
         # Pad the image
         box_height, box_width, padded_image = self.pad_image(sticker,image)
         num_boxes_vertically = padded_image.shape[0]//box_height
@@ -176,9 +167,20 @@ class Helper:
         for j in range(1, num_boxes_vertically):
             plt.axhline(y=j * box_height, color='orange', linestyle='-', linewidth=2)
 
-        plt.show()
         
     def find_location_mse(self, sticker, image):
+        """Find the location of the sticker based on mse value
+
+        Args:
+            sticker (np.array): the sticker
+            image (np.array): the target image
+
+        Returns:
+            best_box: Target box number
+            min_mse: The minimum value of mse
+            sorted_box_idx: Sorted box numbers based on mse values from min to max 
+            sorted_mse: Sorted mse values from min to max
+        """
         
         sticker_dft = self.get_dft(sticker)
         sticker_dft_mag = self.get_dft_magnitude(sticker_dft)
@@ -201,7 +203,6 @@ class Helper:
         sorted_mse_idx = np.argsort(mse_results)
         sorted_box_idx = [i + 1 for i in sorted_mse_idx]
         sorted_mse = np.sort(mse_results)
-        
         
         return best_box, min_mse, sorted_box_idx, sorted_mse
             
@@ -233,3 +234,5 @@ class Helper:
         
         return best_box, max_ssim, sorted_box_idx, sorted_ssim
     
+        
+        
