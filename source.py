@@ -235,4 +235,3 @@ class Helper:
         return best_box, max_ssim, sorted_box_idx, sorted_ssim
     
         
-        
