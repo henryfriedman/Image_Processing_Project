@@ -1,4 +1,5 @@
 from skimage import io, color, data, draw, exposure, feature,metrics, filters, measure, morphology, util, segmentation
+from skimage.transform import resize
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -234,4 +235,89 @@ class Helper:
         
         return best_box, max_ssim, sorted_box_idx, sorted_ssim
     
+    def divide_into_four(self, image):
+        height = image.shape[0]
+        width = image.shape[1]
         
+        mid_height = height // 2
+        mid_width = width // 2
+        
+        # Extract each part of the image
+        top_left = image[:mid_height, :mid_width]
+        top_right = image[:mid_height, mid_width:]
+        bottom_left = image[mid_height:, :mid_width]
+        bottom_right = image[mid_height:, mid_width:]
+
+        return (top_left, (0, 0, mid_height, mid_width)), \
+               (top_right, (0, mid_width, mid_height, width)), \
+               (bottom_left, (mid_height, 0, height, mid_width)), \
+               (bottom_right, (mid_height, mid_width, height, width))
+    
+    
+    def find_location_recursive(self, sticker, image, bounds, min_mse = float('inf')):
+        
+        if image.shape[0] < sticker.shape[0] and image.shape[1] < sticker.shape[1]:
+            return image, bounds
+        
+        sticker_dft = self.get_dft(sticker)
+        sticker_dft = self.get_dft_magnitude(sticker_dft)
+        
+        # Divide the image into four equal parts
+        parts = self.divide_into_four(image)
+        selected_part = None
+        selected_bounds = None
+        
+        for part, (top, left, bottom, right) in parts:
+        
+            # Resize sticker to match the current part's dimensions
+            sticker_dft_resized = resize(sticker_dft, (part.shape[0], part.shape[1]))
+            part_dft = self.get_dft(part)
+            part_dft = self.get_dft_magnitude(part_dft)
+            
+            mse = np.mean((part_dft - sticker_dft_resized) ** 2)
+            
+            if mse < min_mse:
+                min_mse = mse
+                selected_part = part
+                selected_bounds = (bounds[0] + top, bounds[1] + left, bounds[0] + bottom, bounds[1] + right)
+
+        if selected_part is not None:
+            image, bounds = self.find_location_recursive(sticker, selected_part, selected_bounds, min_mse)
+            return selected_part, selected_bounds 
+        else:
+            return image, bounds
+    
+    
+    def find_location_sliding_window(self, sticker, image, step = 50):
+        
+        sticker_height, sticker_width = sticker.shape
+        image_height, image_width = image.shape
+
+        if sticker_height > image_height or sticker_width > image_width:
+            return None  # The sticker can't fit in the image
+
+        min_mse = float('inf')
+        best_position = None
+        best_match_box = None
+        sticker_dft = self.get_dft(sticker)
+        sticker_dft_mag = self.get_dft_magnitude(sticker_dft)
+
+        # Loop over all possible top-left corners of the search window
+        for y in range(0, image_height - sticker_height + 1, step):
+            for x in range(0, image_width - sticker_width + 1, step):
+                # Extract the current part of the image that the window covers
+                window = image[y:y+sticker_height, x:x+sticker_width]
+    
+                window_dft = self.get_dft(window)
+                window_dft_mag = self.get_dft_magnitude(window_dft)
+
+                # Calculate MSE between the sticker and the window
+                mse = np.mean((window_dft_mag - sticker_dft_mag) ** 2)
+         
+                # Update the best position if a new minimum MSE is found
+                if mse < min_mse:
+                    min_mse = mse
+                    best_position = (y, x)
+                    best_match_box = window.copy()
+
+        return best_position, best_match_box
