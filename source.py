@@ -56,7 +56,7 @@ class Helper:
         pad_width = 0 if image.shape[1] % box_width == 0 else box_width - image.shape[1] % box_width
         
         # Apply padding to the image
-        padded_image = np.pad(image, ((0, pad_height), (0, pad_width)), mode='reflect')
+        padded_image = np.pad(image, ((0, pad_height), (0, pad_width)), mode='constant', constant_values=1)
         
         return box_height, box_width, padded_image
     
