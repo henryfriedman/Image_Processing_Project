@@ -1,7 +1,7 @@
 from skimage import io, color, data, draw, exposure, feature,metrics, filters, measure, morphology, util, segmentation
 from skimage.transform import resize
 import numpy as np
-
+import cv2 as cv
 import matplotlib.pyplot as plt
 import scipy.fft as sft
 import scipy.signal as sps
@@ -236,6 +236,14 @@ class Helper:
         return best_box, max_ssim, sorted_box_idx, sorted_ssim
     
     def divide_into_four(self, image):
+        """Divide an image into 4 equal parts
+
+        Args:
+            image (np.array): image
+
+        Returns:
+            4 sub-images
+        """
         height = image.shape[0]
         width = image.shape[1]
         
@@ -255,6 +263,18 @@ class Helper:
     
     
     def find_location_recursive(self, sticker, image, bounds, min_mse = float('inf')):
+        """Recursively divide the image into 4 parts and search for the sticker
+
+        Args:
+            sticker (np.array): sticker
+            image (np.array): image
+            bounds (tuple): top left, top right, bottom left, bottom right of the image
+            min_mse (float, optional): Current minimum value of mse 
+
+        Returns:
+            image: the target sub-image
+            bounds: top left, top right, bottom left, bottom right of the image
+        """
         
         if image.shape[0] < sticker.shape[0] and image.shape[1] < sticker.shape[1]:
             return image, bounds
@@ -288,7 +308,19 @@ class Helper:
             return image, bounds
     
     
-    def find_location_sliding_window(self, sticker, image, step = 50):
+    def find_location_sliding_window(self, sticker, image, step = 20):
+        """Find the best location of the searching window by sliding it over the image
+             in the given steps
+
+        Args:
+            sticker (np.array): sticker
+            image (np.arra): image
+            step (int, optional): The number of pixels the window skips each time
+
+        Returns:
+            best_position (tuple): the top left coordinate of the best window
+            best_match_box (np.array): the best window
+        """
         
         sticker_height, sticker_width = sticker.shape
         image_height, image_width = image.shape
@@ -313,6 +345,144 @@ class Helper:
 
                 # Calculate MSE between the sticker and the window
                 mse = np.mean((window_dft_mag - sticker_dft_mag) ** 2)
+         
+                # Update the best position if a new minimum MSE is found
+                if mse < min_mse:
+                    min_mse = mse
+                    best_position = (y, x)
+                    best_match_box = window.copy()
+
+        return best_position, best_match_box
+    
+    
+    def draw_bounding_box(self, sticker, image, top_left):
+        """Draw a bounding box based on the shape of the sticker
+
+        Args:
+            sticker (np.array): sticker
+            image (np.array): image
+            top_left (tuple): top left coordinate (y,x) of the box
+        """
+        # Numpy has coordinate (height, width)
+        y,x = top_left
+        # Make a copy of the image
+        img = image.copy()
+        sticker_height = sticker.shape[0]
+        sticker_width = sticker.shape[1]
+        # OpenCV has coordinate: (width, height)
+        image_window=cv.rectangle(img,(x,y),(x+sticker_width, y+sticker_height), (0,255,0), 4)
+        io.imshow(image_window)
+        
+        
+    def template_matching(self, image, sticker):
+        
+        result = feature.match_template(image, sticker)
+        ij = np.unravel_index(np.argmax(result), result.shape)
+        x, y = ij[::-1]
+        
+        fig = plt.figure(figsize=(10, 10))
+        ax1 = plt.subplot(1, 3, 1)
+        ax2 = plt.subplot(1, 3, 2)
+        ax3 = plt.subplot(1, 3, 3, sharex=ax2, sharey=ax2)
+        
+        ax1.imshow(sticker, cmap=plt.cm.gray)
+        ax1.set_axis_off()
+        ax1.set_title('template')
+        
+        ax2.imshow(image, cmap=plt.cm.gray)
+        ax2.set_axis_off()
+        ax2.set_title('image')
+        # highlight matched region
+        hsticker, wsticker = sticker.shape
+        rect = plt.Rectangle((x, y), wsticker, hsticker, edgecolor='r', facecolor='none')
+        ax2.add_patch(rect)
+        
+        ax3.imshow(result)
+        ax3.set_axis_off()
+        ax3.set_title('`match_template`\nresult')
+        # highlight matched region
+        ax3.autoscale(False)
+        ax3.plot(x, y, 'o', markeredgecolor='r', markerfacecolor='none', markersize=10)
+        
+        plt.show()
+        
+        
+        
+        
+        
+    
+    def find_location_recursive_spatial(self, sticker, image, bounds, min_mse = float('inf')):
+        """Recursively divide the image into 4 parts and search for the sticker
+
+        Args:
+            sticker (np.array): sticker
+            image (np.array): image
+            bounds (tuple): top left, top right, bottom left, bottom right of the image
+            min_mse (float, optional): Current minimum value of mse 
+
+        Returns:
+            image: the target sub-image
+            bounds: top left, top right, bottom left, bottom right of the image
+        """
+        
+        if image.shape[0] < sticker.shape[0] and image.shape[1] < sticker.shape[1]:
+            return image, bounds
+        
+        # Divide the image into four equal parts
+        parts = self.divide_into_four(image)
+        selected_part = None
+        selected_bounds = None
+        
+        for part, (top, left, bottom, right) in parts:
+        
+            # Resize sticker to match the current part's dimensions
+            sticker_resized = resize(sticker, (part.shape[0], part.shape[1]))
+            
+            mse = np.mean((part - sticker_resized) ** 2)
+            
+            if mse < min_mse:
+                min_mse = mse
+                selected_part = part
+                selected_bounds = (bounds[0] + top, bounds[1] + left, bounds[0] + bottom, bounds[1] + right)
+
+        if selected_part is not None:
+            image, bounds = self.find_location_recursive(sticker, selected_part, selected_bounds, min_mse)
+            return selected_part, selected_bounds 
+        else:
+            return image, bounds
+    
+    def find_location_sliding_window_spatial(self, sticker, image, step = 20):
+        """Find the best location of the searching window by sliding it over the image
+             in the given steps
+
+        Args:
+            sticker (np.array): sticker
+            image (np.arra): image
+            step (int, optional): The number of pixels the window skips each time
+
+        Returns:
+            best_position (tuple): the top left coordinate of the best window
+            best_match_box (np.array): the best window
+        """
+        
+        sticker_height, sticker_width = sticker.shape
+        image_height, image_width = image.shape
+
+        if sticker_height > image_height or sticker_width > image_width:
+            return None  # The sticker can't fit in the image
+
+        min_mse = float('inf')
+        best_position = None
+        best_match_box = None
+
+        # Loop over all possible top-left corners of the search window
+        for y in range(0, image_height - sticker_height + 1, step):
+            for x in range(0, image_width - sticker_width + 1, step):
+                # Extract the current part of the image that the window covers
+                window = image[y:y+sticker_height, x:x+sticker_width]
+
+                # Calculate MSE between the sticker and the window
+                mse = np.mean((window - sticker) ** 2)
          
                 # Update the best position if a new minimum MSE is found
                 if mse < min_mse:
