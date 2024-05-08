@@ -44,7 +44,7 @@ def view_spectrogram(sticker,folder_path):
 
 if __name__ == "__main__":
     
-    sticker = io.imread('stickers/triangle.png', as_gray = True)
+    sticker = io.imread('stickers/right_triangle.png', as_gray = True)
     # Path to the folder containing images
-    folder_path = 'triangles_vid'
+    folder_path = '/Users/sallyliu/Desktop/CSCI 452/Project/Image_Processing_Project/rotating_30_60_90_chirps_video'
     view_spectrogram(sticker, folder_path)

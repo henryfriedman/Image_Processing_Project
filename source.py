@@ -303,12 +303,11 @@ class Helper:
 
         if selected_part is not None:
             image, bounds = self.find_location_recursive(sticker, selected_part, selected_bounds, min_mse)
-            return selected_part, selected_bounds 
-        else:
-            return image, bounds
+    
+        return image, bounds
     
     
-    def find_location_sliding_window(self, sticker, image, step = 20):
+    def find_location_sliding_window(self, sticker, image, step_x = 20, step_y = 20):
         """Find the best location of the searching window by sliding it over the image
              in the given steps
 
@@ -335,8 +334,8 @@ class Helper:
         sticker_dft_mag = self.get_dft_magnitude(sticker_dft)
 
         # Loop over all possible top-left corners of the search window
-        for y in range(0, image_height - sticker_height + 1, step):
-            for x in range(0, image_width - sticker_width + 1, step):
+        for y in range(0, image_height - sticker_height + 1, step_y):
+            for x in range(0, image_width - sticker_width + 1, step_x):
                 # Extract the current part of the image that the window covers
                 window = image[y:y+sticker_height, x:x+sticker_width]
     
@@ -373,7 +372,12 @@ class Helper:
         image_window=cv.rectangle(img,(x,y),(x+sticker_width, y+sticker_height), (0,255,0), 4)
         io.imshow(image_window)
         
-        
+    
+    
+    
+  ### Spatial Domain for comparison 
+  
+      
     def template_matching(self, image, sticker):
         
         result = feature.match_template(image, sticker)
@@ -405,11 +409,7 @@ class Helper:
         ax3.plot(x, y, 'o', markeredgecolor='r', markerfacecolor='none', markersize=10)
         
         plt.show()
-        
-        
-        
-        
-        
+             
     
     def find_location_recursive_spatial(self, sticker, image, bounds, min_mse = float('inf')):
         """Recursively divide the image into 4 parts and search for the sticker
